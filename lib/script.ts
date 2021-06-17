@@ -9,13 +9,13 @@ export function useScript(src: string) {
             return;
         }
 
-        let script = window.document.querySelector(`script[src="${src}"]`);
+        let script = window.document.querySelector(`script[src="${src}"]`) as HTMLScriptElement;
 
         if (!script) {
             // Create script
-            script = document.createElement<"script">("script");
+            script = document.createElement("script");
             script.src = src;
-            script.async = "true";
+            script.async = true;
             script.setAttribute("data-status", "loading");
             // Add script to document body
             document.body.appendChild(script);

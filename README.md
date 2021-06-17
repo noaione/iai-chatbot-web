@@ -3,7 +3,7 @@ This website is purposely made to accompany our Chatbot created with [Engati](ht
 
 This website is built with NextJS (React Framework) and with styling of TailwindCSS.
 
-You can access the live version here: [iaichatbot.n4o.xyz](#)
+You can access the live version here: [iaichatbot.n4o.xyz](https://iaichatbot.n4o.xyz)
 
 ## Setup
 1. Install node and yarn
