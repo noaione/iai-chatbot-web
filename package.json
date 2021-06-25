@@ -17,6 +17,7 @@
     "testall": "npm-run-all lint type-check"
   },
   "dependencies": {
+    "axios": "^0.21.1",
     "next": "^11.0.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"
