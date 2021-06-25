@@ -21,7 +21,7 @@ function GroupMember(props: GroupMemberProps) {
 
 export default function MainHomepage() {
     const configBot = {
-        bot_key: "5ad563cf58684af5",
+        bot_key: "75bc844375b54148",
         welcome_msg: true,
         branding_key: "default",
         server: "https://app.engati.com",
