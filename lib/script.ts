@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
-export function useScript(src: string) {
+type ScriptStatus = "idle" | "loading" | "ready" | "error";
+
+export function useScript(src: string): ScriptStatus {
     const [status, setStatus] = useState(src ? "loading" : "idle");
 
     useEffect(() => {
@@ -49,5 +51,5 @@ export function useScript(src: string) {
         };
     }, [src]);
 
-    return status;
+    return status as ScriptStatus;
 }
