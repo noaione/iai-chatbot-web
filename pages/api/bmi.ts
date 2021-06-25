@@ -20,7 +20,7 @@ export default async function BMICalculatorAPI(req: NextApiRequest, res: NextApi
         } else if (BMI >= 30 && BMI < 35) {
             BMIText = "Obese";
         } else if (BMI >= 35) {
-            BMIText = "Extremly Obese";
+            BMIText = "Extremely Obese";
         }
         const textFormat = `Your BMI is ${BMI.toFixed(2)} (${BMIText})`;
         res.json({ data: { type: "text", text: textFormat } });
