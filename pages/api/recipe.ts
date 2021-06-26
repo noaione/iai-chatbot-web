@@ -23,10 +23,6 @@ type Cuisine =
     | "south american"
     | "south east asian";
 
-interface AnyDict {
-    [key: string]: any;
-}
-
 interface Paginating {
     href: Nullable<string>;
     title: Nullable<string>;
