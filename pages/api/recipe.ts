@@ -103,6 +103,10 @@ interface EdamamAPIResult {
     hits: ResultHits[];
 }
 
+function toUppercase(text: string): string {
+    return text.slice(0, 1).toUpperCase() + text.slice(1);
+}
+
 function isNone(data: any): data is Nulled {
     return data === null || typeof data === "undefined";
 }
@@ -122,24 +126,96 @@ function walk(data: any, keys: string) {
     return data;
 }
 
-function getRandom<T>(toRandom: T[]) {
-    if (!Array.isArray(toRandom)) {
-        return null;
-    }
-    if (toRandom.length < 1) {
-        return null;
-    }
-    const total = toRandom.length;
+function randRange(total: number) {
     let range = Math.floor(Math.random() * (total - 1) + 1);
-    if (range < 0) {
-        range = 0;
+    if (range < 1) {
+        range = 1;
     } else if (range >= total) {
-        range = total - 1;
+        range = total;
     }
-    return toRandom[range];
+    return range - 1;
 }
 
-async function fetchAPI() {
+function getRandom<T>(toRandom: T[], hits: number = 1): T[] {
+    if (!Array.isArray(toRandom)) {
+        return [];
+    }
+    if (toRandom.length < 1) {
+        return [];
+    }
+    if (toRandom.length < hits) {
+        return toRandom;
+    }
+    const randomData = [];
+    for (let i = 0; i < hits; i++) {
+        const num = randRange(toRandom.length);
+        const got = toRandom[num];
+        randomData.push(got);
+        toRandom = toRandom.filter((_, idx) => idx !== num);
+    }
+    return randomData;
+}
+
+interface CarouselButton {
+    payload: string;
+    title: string;
+    type: string;
+}
+
+interface CarouselAction {
+    url: string;
+    type: string;
+}
+
+interface CarouselEngati {
+    title: string;
+    subtitle: string;
+    image_url?: string;
+    buttons?: CarouselButton[];
+    default_action: CarouselAction;
+}
+
+function formatToCarousel(allHits: ResultHits[]) {
+    const formattedHits = [] as CarouselEngati[];
+    allHits.forEach((recipeHit) => {
+        const { recipe } = recipeHit;
+        let formatSubtitle = "";
+        formatSubtitle += `Total Calories: ${recipe.calories.toFixed(
+            2
+        )} kcal | Total Weight: ${recipe.totalWeight.toFixed(2)}gr`;
+        let mealTypes = [];
+        const mealType = (walk(recipe, "mealType") as string[]) || [];
+        mealType.forEach((e: string) => {
+            const splitAt = e.split("/");
+            mealTypes = mealTypes.concat(splitAt);
+        });
+        mealTypes = mealTypes.map((e) => toUppercase(e));
+        formatSubtitle += `\nFor ${mealTypes.join(", ")}`;
+        let dishType = (walk(recipe, "dishType") as string[]) || [];
+        dishType = dishType.map((e) => toUppercase(e));
+        formatSubtitle += `\nDish Type: ${dishType.join(", ")}`;
+        const formatHit: CarouselEngati = {
+            title: recipe.label,
+            subtitle: formatSubtitle,
+            image_url: recipe.image,
+            buttons: [
+                {
+                    payload: recipe.shareAs,
+                    type: "web_url",
+                    title: "More Info",
+                },
+            ],
+            default_action: {
+                url: recipe.shareAs,
+                type: "web_url",
+            },
+        };
+        formattedHits.push(formatHit);
+    });
+    return formattedHits;
+}
+
+async function fetchAPI(hits: number = 1) {
     const request = await axios.get<EdamamAPIResult>(`https://api.edamam.com/api/recipes/v2`, {
         headers: {
             Accept: "application/json",
@@ -150,15 +226,25 @@ async function fetchAPI() {
             app_id: process.env.EDAMAM_APP_ID,
             app_key: process.env.EDAMAM_APP_SECRET,
             imageSize: "REGULAR",
-            q: "healthy",
-            diet: "balanced",
+            diet: "low-fat",
+            calories: "0-400",
         },
         responseType: "json",
     });
     const edamamResponse = request.data;
     const allHitsFiltered = edamamResponse.hits.filter((e) => {
         let addIt = true;
-        ["drinks", "desserts", "pancakes", "preps"].forEach((nOMEGALUL) => {
+        [
+            "Alcohol-cocktail",
+            "drinks",
+            "desserts",
+            "pancakes",
+            "preps",
+            "side dish",
+            "side-dish",
+            "sweets",
+            "condiments and sauces",
+        ].forEach((nOMEGALUL) => {
             const dishTypes = (walk(e, "recipe.dishType") as string[]) || [];
             if (dishTypes.includes(nOMEGALUL)) {
                 addIt = false;
@@ -166,13 +252,27 @@ async function fetchAPI() {
         });
         return addIt;
     });
-    return getRandom(allHitsFiltered)?.recipe;
+    return formatToCarousel(getRandom(allHitsFiltered, hits));
 }
 
 export default async function EdamamRecipeSearchAPI(req: NextApiRequest, res: NextApiResponse) {
+    let hitTotal = req?.query?.hits as string | undefined;
+    if (isNone(hitTotal)) {
+        hitTotal = "3";
+    }
+    let parsedHitsInt = parseInt(hitTotal);
+    if (isNaN(parsedHitsInt)) {
+        parsedHitsInt = 3;
+    }
+    if (parsedHitsInt < 1) {
+        parsedHitsInt = 1;
+    }
+    if (parsedHitsInt > 10) {
+        parsedHitsInt = 10;
+    }
     try {
-        const recipe = await fetchAPI();
-        res.json({ data: recipe });
+        const recipes = await fetchAPI(parsedHitsInt);
+        res.json({ data: { type: "carousel", templates: recipes } });
     } catch (e) {
         if (e.response) {
             console.error("An error occured!");
