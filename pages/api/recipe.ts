@@ -1,6 +1,7 @@
 import axios from "axios";
 import { NextApiRequest, NextApiResponse } from "next";
 
+type Nulled = null | undefined;
 type Nullable<T> = T | null;
 type Cuisine =
     | "world"
@@ -102,7 +103,32 @@ interface EdamamAPIResult {
     hits: ResultHits[];
 }
 
+function isNone(data: any): data is Nulled {
+    return data === null || typeof data === "undefined";
+}
+
+function walk(data: any, keys: string) {
+    const allKeys = keys.split(".");
+    allKeys.forEach((key) => {
+        if (isNone(data)) {
+            return;
+        }
+        if (!isNaN(parseInt(key))) {
+            data = data[parseInt(key)];
+        } else {
+            data = data[key];
+        }
+    });
+    return data;
+}
+
 function getRandom<T>(toRandom: T[]) {
+    if (!Array.isArray(toRandom)) {
+        return null;
+    }
+    if (toRandom.length < 1) {
+        return null;
+    }
     const total = toRandom.length;
     let range = Math.floor(Math.random() * (total - 1) + 1);
     if (range < 0) {
@@ -114,7 +140,7 @@ function getRandom<T>(toRandom: T[]) {
 }
 
 async function fetchAPI() {
-    const request = await axios.get<EdamamAPIResult>("https://api.edamam.com/api/recipes/v2", {
+    const request = await axios.get<EdamamAPIResult>(`https://api.edamam.com/api/recipes/v2`, {
         headers: {
             Accept: "application/json",
             "Accept-Encoding": "gzip",
@@ -125,11 +151,22 @@ async function fetchAPI() {
             app_key: process.env.EDAMAM_APP_SECRET,
             imageSize: "REGULAR",
             q: "healthy",
+            diet: "balanced",
         },
         responseType: "json",
     });
     const edamamResponse = request.data;
-    return getRandom(edamamResponse.hits).recipe;
+    const allHitsFiltered = edamamResponse.hits.filter((e) => {
+        let addIt = true;
+        ["drinks", "desserts", "pancakes", "preps"].forEach((nOMEGALUL) => {
+            const dishTypes = (walk(e, "recipe.dishType") as string[]) || [];
+            if (dishTypes.includes(nOMEGALUL)) {
+                addIt = false;
+            }
+        });
+        return addIt;
+    });
+    return getRandom(allHitsFiltered)?.recipe;
 }
 
 export default async function EdamamRecipeSearchAPI(req: NextApiRequest, res: NextApiResponse) {
@@ -137,6 +174,12 @@ export default async function EdamamRecipeSearchAPI(req: NextApiRequest, res: Ne
         const recipe = await fetchAPI();
         res.json({ data: recipe });
     } catch (e) {
+        if (e.response) {
+            console.error("An error occured!");
+            console.error(JSON.stringify(e.response.data, undefined, 2));
+        } else {
+            console.error(e);
+        }
         res.status(500).json({
             data: { type: "text", text: "An error occured while trying to get a recipe." },
         });
