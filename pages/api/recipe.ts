@@ -186,9 +186,11 @@ function formatToCarousel(allHits: ResultHits[]) {
     allHits.forEach((recipeHit) => {
         const { recipe } = recipeHit;
         let formatSubtitle = "";
-        formatSubtitle += `Total Calories: ${recipe.calories.toFixed(
+        const { calories } = recipe;
+        const kkalPerServing = calories / recipe.yield;
+        formatSubtitle += `Calories per seving: ${kkalPerServing.toFixed(
             2
-        )} kcal | Total Weight: ${recipe.totalWeight.toFixed(2)}gr`;
+        )} cal | Total Weight: ${recipe.totalWeight.toFixed(2)}gr | Serving: ${recipe.yield} people`;
         let mealTypes = [];
         const mealType = (walk(recipe, "mealType") as string[]) || [];
         mealType.forEach((e: string) => {
@@ -199,7 +201,7 @@ function formatToCarousel(allHits: ResultHits[]) {
         formatSubtitle += `\nFor ${mealTypes.join(", ")}`;
         let dishType = (walk(recipe, "dishType") as string[]) || [];
         dishType = dishType.map((e) => toUppercase(e));
-        formatSubtitle += `\nDish Type: ${dishType.join(", ")}`;
+        formatSubtitle += `\nDish Type: ${dishType.join(", ")} dish`;
         const formatHit: CarouselEngati = {
             title: recipe.label,
             subtitle: formatSubtitle,
