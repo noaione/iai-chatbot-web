@@ -1,5 +1,11 @@
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import { NextApiRequest, NextApiResponse } from "next";
+
+// @ts-ignore
+if (!global.cachedRecipes) {
+    // @ts-ignore
+    global.cachedRecipes = [];
+}
 
 type Nulled = null | undefined;
 type Nullable<T> = T | null;
@@ -215,27 +221,61 @@ function formatToCarousel(allHits: ResultHits[]) {
     return formattedHits;
 }
 
+async function fetchXTimes(total = 5) {
+    // @ts-ignore
+    if (global.cachedRecipes.length > 0) {
+        console.info("[Edamam] Cache hits!");
+        // @ts-ignore
+        return global.cachedRecipes as ResultHits[];
+    }
+    let totalHits = [] as ResultHits[];
+    let nextUrl = null;
+    while (total > 0) {
+        let request: AxiosResponse<EdamamAPIResult>;
+        if (typeof nextUrl === "string") {
+            console.info(`[Edamam] Fetching page:`, total, "(Paginating)");
+            request = await axios.get(nextUrl);
+        } else {
+            console.info(`[Edamam] Fetching page:`, total, "(First hit)");
+            request = await axios.get<EdamamAPIResult>(`https://api.edamam.com/api/recipes/v2`, {
+                headers: {
+                    Accept: "application/json",
+                    "Accept-Encoding": "gzip",
+                },
+                params: {
+                    type: "public",
+                    app_id: process.env.EDAMAM_APP_ID,
+                    app_key: process.env.EDAMAM_APP_SECRET,
+                    imageSize: "REGULAR",
+                    diet: "balanced",
+                    health: "alcohol-free",
+                    q: "healthy",
+                },
+                responseType: "json",
+            });
+        }
+
+        const edamamResponse = request.data;
+        // eslint-disable-next-line no-underscore-dangle
+        nextUrl = edamamResponse._links.next.href;
+        totalHits = totalHits.concat(edamamResponse.hits);
+        if (isNone(nextUrl)) {
+            break;
+        }
+        total -= 1;
+    }
+
+    // @ts-ignore
+    global.cachedRecipes = totalHits;
+    return totalHits;
+}
+
 async function fetchAPI(hits: number = 1) {
-    const request = await axios.get<EdamamAPIResult>(`https://api.edamam.com/api/recipes/v2`, {
-        headers: {
-            Accept: "application/json",
-            "Accept-Encoding": "gzip",
-        },
-        params: {
-            type: "public",
-            app_id: process.env.EDAMAM_APP_ID,
-            app_key: process.env.EDAMAM_APP_SECRET,
-            imageSize: "REGULAR",
-            diet: "low-fat",
-            calories: "0-400",
-        },
-        responseType: "json",
-    });
-    const edamamResponse = request.data;
-    const allHitsFiltered = edamamResponse.hits.filter((e) => {
+    const edamamResponseHits = await fetchXTimes();
+    const allHitsFiltered = edamamResponseHits.filter((e) => {
         let addIt = true;
         [
-            "Alcohol-cocktail",
+            "alcohol-cocktail",
             "drinks",
             "desserts",
             "pancakes",
