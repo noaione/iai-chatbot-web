@@ -1,10 +1,11 @@
+/* eslint-disable no-prototype-builtins */
 import axios, { AxiosResponse } from "axios";
 import { NextApiRequest, NextApiResponse } from "next";
 
 // @ts-ignore
 if (!global.cachedRecipes) {
     // @ts-ignore
-    global.cachedRecipes = [];
+    global.cachedRecipes = {};
 }
 
 type Nulled = null | undefined;
@@ -223,22 +224,24 @@ function formatToCarousel(allHits: ResultHits[]) {
     return formattedHits;
 }
 
-async function fetchXTimes(total = 5) {
-    // @ts-ignore
-    if (global.cachedRecipes.length > 0) {
-        console.info("[Edamam] Cache hits!");
-        // @ts-ignore
-        return global.cachedRecipes as ResultHits[];
-    }
+const AllergyMapping = {
+    eggs: "	egg-free",
+    milk: "dairy-free",
+    seafood: "fish-free",
+    nuts: "peanut-free",
+};
+
+async function fetchXTimes(allergy: string = "none", total = 5) {
     let totalHits = [] as ResultHits[];
     let nextUrl = null;
     while (total > 0) {
+        const healthyStuff = AllergyMapping[allergy] || "alcohol-free";
         let request: AxiosResponse<EdamamAPIResult>;
         if (typeof nextUrl === "string") {
-            console.info(`[Edamam] Fetching page:`, total, "(Paginating)");
+            console.info(`[Edamam] Fetching page (Allergy ${allergy}):`, total, "(Paginating)");
             request = await axios.get(nextUrl);
         } else {
-            console.info(`[Edamam] Fetching page:`, total, "(First hit)");
+            console.info(`[Edamam] Fetching page (Allergy ${allergy}):`, total, "(First hit)");
             request = await axios.get<EdamamAPIResult>(`https://api.edamam.com/api/recipes/v2`, {
                 headers: {
                     Accept: "application/json",
@@ -250,7 +253,7 @@ async function fetchXTimes(total = 5) {
                     app_key: process.env.EDAMAM_APP_SECRET,
                     imageSize: "REGULAR",
                     diet: "balanced",
-                    health: "alcohol-free",
+                    health: healthyStuff,
                     q: "healthy",
                 },
                 responseType: "json",
@@ -268,12 +271,24 @@ async function fetchXTimes(total = 5) {
     }
 
     // @ts-ignore
-    global.cachedRecipes = totalHits;
+    if (!global.cachedRecipes) {
+        // @ts-ignore
+        global.cachedRecipes = {};
+    }
+
+    // @ts-ignore
+    global.cachedRecipes[allergy] = totalHits;
     return totalHits;
 }
 
-async function fetchAPI(hits: number = 1) {
-    const edamamResponseHits = await fetchXTimes();
+async function fetchAPI(hits: number = 1, allergy = "none") {
+    // @ts-ignore
+    if (global.cachedRecipes.hasOwnProperty(allergy)) {
+        console.info(`[Edamam] Cache hits for ${allergy}!`);
+        // @ts-ignore
+        return formatToCarousel(getRandom(global.cachedRecipes[allergy] as ResultHits[], hits));
+    }
+    const edamamResponseHits = await fetchXTimes(allergy);
     const allHitsFiltered = edamamResponseHits.filter((e) => {
         let addIt = true;
         [
@@ -299,8 +314,16 @@ async function fetchAPI(hits: number = 1) {
 
 export default async function EdamamRecipeSearchAPI(req: NextApiRequest, res: NextApiResponse) {
     let hitTotal = req?.query?.hits as string | undefined;
+    let allergyData = req?.query?.allergy as string | undefined;
     if (isNone(hitTotal)) {
         hitTotal = "3";
+    }
+    if (typeof allergyData !== "string") {
+        allergyData = "none";
+    }
+    allergyData = allergyData.toLowerCase();
+    if (!["eggs", "milk", "seafood", "nuts"].includes(allergyData)) {
+        allergyData = "none";
     }
     let parsedHitsInt = parseInt(hitTotal);
     if (isNaN(parsedHitsInt)) {
@@ -313,7 +336,7 @@ export default async function EdamamRecipeSearchAPI(req: NextApiRequest, res: Ne
         parsedHitsInt = 10;
     }
     try {
-        const recipes = await fetchAPI(parsedHitsInt);
+        const recipes = await fetchAPI(parsedHitsInt, allergyData);
         res.json({ data: { type: "carousel", templates: recipes } });
     } catch (e) {
         if (e.response) {
